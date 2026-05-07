@@ -17,7 +17,12 @@ public class ClipboardSyncService extends Service {
     public static final String ACTION_SEND_NOW = "com.example.clipboardsync.SEND_NOW";
     public static final String ACTION_SYNC_HISTORY = "com.example.clipboardsync.SYNC_HISTORY";
     public static final String ACTION_STOP = "com.example.clipboardsync.STOP";
+    public static final String EXTRA_TRANSPORT_MODE = "transport_mode";
     public static final String EXTRA_WS_URL = "ws_url";
+    public static final String EXTRA_FIREBASE_DB_URL = "firebase_db_url";
+    public static final String EXTRA_FIREBASE_ROOM = "firebase_room";
+    public static final String TRANSPORT_FIREBASE = "firebase";
+    public static final String TRANSPORT_WEBSOCKET = "websocket";
 
     private static final int NOTIFICATION_ID = 1001;
     private static final String CHANNEL_ID = "clipboardmig_sync";
@@ -26,7 +31,11 @@ public class ClipboardSyncService extends Service {
     private ClipboardManager.OnPrimaryClipChangedListener clipListener;
     private ClipboardHistoryStore historyStore;
     private SimpleWebSocketClient webSocketClient;
+    private FirebaseRelayClient firebaseRelayClient;
+    private String transportMode = TRANSPORT_FIREBASE;
     private String wsUrl;
+    private String firebaseDbUrl;
+    private String firebaseRoom = "demo";
     private String lastSentText = "";
     private boolean listenerRegistered = false;
 
@@ -49,15 +58,27 @@ public class ClipboardSyncService extends Service {
             return START_NOT_STICKY;
         }
 
-        wsUrl = intent != null ? intent.getStringExtra(EXTRA_WS_URL) : wsUrl;
-        if (wsUrl == null || wsUrl.trim().isEmpty()) {
-            Toast.makeText(this, "Missing WebSocket URL", Toast.LENGTH_LONG).show();
+        if (intent != null) {
+            transportMode = intent.getStringExtra(EXTRA_TRANSPORT_MODE) != null
+                    ? intent.getStringExtra(EXTRA_TRANSPORT_MODE)
+                    : transportMode;
+            wsUrl = intent.getStringExtra(EXTRA_WS_URL) != null ? intent.getStringExtra(EXTRA_WS_URL) : wsUrl;
+            firebaseDbUrl = intent.getStringExtra(EXTRA_FIREBASE_DB_URL) != null
+                    ? intent.getStringExtra(EXTRA_FIREBASE_DB_URL)
+                    : firebaseDbUrl;
+            firebaseRoom = intent.getStringExtra(EXTRA_FIREBASE_ROOM) != null
+                    ? intent.getStringExtra(EXTRA_FIREBASE_ROOM)
+                    : firebaseRoom;
+        }
+
+        if (!hasValidRelayConfig()) {
+            Toast.makeText(this, "Missing relay configuration", Toast.LENGTH_LONG).show();
             stopSelf();
             return START_NOT_STICKY;
         }
 
-        startForeground(NOTIFICATION_ID, buildNotification("Listening for clipboard changes"));
-        ensureWebSocketClient();
+        startForeground(NOTIFICATION_ID, buildNotification("Listening with " + relayLabel()));
+        ensureRelayClient();
 
         if (ACTION_SEND_NOW.equals(action)) {
             sendCurrentClipboard(true);
@@ -120,8 +141,8 @@ public class ClipboardSyncService extends Service {
         }
 
         lastSentText = text;
-        ensureWebSocketClient();
-        webSocketClient.sendText(historyStore.createClipboardTextPayload(entry), new SimpleWebSocketClient.Callback() {
+        ensureRelayClient();
+        sendPayload(historyStore.createClipboardTextPayload(entry), new SimpleWebSocketClient.Callback() {
             @Override
             public void onStatus(String status) {
                 updateNotification(status);
@@ -132,7 +153,7 @@ public class ClipboardSyncService extends Service {
 
             @Override
             public void onError(Exception error) {
-                updateNotification("WebSocket error: " + error.getMessage());
+                updateNotification(relayLabel() + " error: " + error.getMessage());
                 if (stopAfterSend) {
                     stopSelf();
                 }
@@ -153,8 +174,8 @@ public class ClipboardSyncService extends Service {
             return;
         }
 
-        ensureWebSocketClient();
-        webSocketClient.sendText(historyStore.createHistorySyncPayload(), new SimpleWebSocketClient.Callback() {
+        ensureRelayClient();
+        sendPayload(historyStore.createHistorySyncPayload(), new SimpleWebSocketClient.Callback() {
             @Override
             public void onStatus(String status) {
                 updateNotification("Synced " + count + " saved items");
@@ -165,7 +186,7 @@ public class ClipboardSyncService extends Service {
 
             @Override
             public void onError(Exception error) {
-                updateNotification("WebSocket error: " + error.getMessage());
+                updateNotification(relayLabel() + " error: " + error.getMessage());
                 if (stopAfterSend) {
                     stopSelf();
                 }
@@ -196,6 +217,41 @@ public class ClipboardSyncService extends Service {
         } catch (SecurityException error) {
             return null;
         }
+    }
+
+    private boolean hasValidRelayConfig() {
+        if (TRANSPORT_WEBSOCKET.equals(transportMode)) {
+            return wsUrl != null && (wsUrl.startsWith("ws://") || wsUrl.startsWith("wss://"));
+        }
+
+        return firebaseDbUrl != null
+                && firebaseDbUrl.startsWith("https://")
+                && firebaseRoom != null
+                && !firebaseRoom.trim().isEmpty();
+    }
+
+    private void ensureRelayClient() {
+        if (TRANSPORT_WEBSOCKET.equals(transportMode)) {
+            ensureWebSocketClient();
+            return;
+        }
+
+        if (firebaseRelayClient == null) {
+            firebaseRelayClient = new FirebaseRelayClient();
+        }
+    }
+
+    private void sendPayload(String payload, SimpleWebSocketClient.Callback callback) {
+        if (TRANSPORT_WEBSOCKET.equals(transportMode)) {
+            webSocketClient.sendText(payload, callback);
+            return;
+        }
+
+        firebaseRelayClient.sendText(firebaseDbUrl, firebaseRoom, payload, callback);
+    }
+
+    private String relayLabel() {
+        return TRANSPORT_WEBSOCKET.equals(transportMode) ? "WebSocket" : "Firebase";
     }
 
     private void ensureWebSocketClient() {
@@ -230,6 +286,11 @@ public class ClipboardSyncService extends Service {
         if (webSocketClient != null) {
             webSocketClient.close();
             webSocketClient = null;
+        }
+
+        if (firebaseRelayClient != null) {
+            firebaseRelayClient.close();
+            firebaseRelayClient = null;
         }
 
         stopForeground(true);

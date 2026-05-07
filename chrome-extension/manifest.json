@@ -5,6 +5,10 @@
   "version": "1.0.0",
   "minimum_chrome_version": "116",
   "permissions": ["clipboardWrite", "offscreen", "storage"],
+  "host_permissions": [
+    "https://*.firebaseio.com/*",
+    "https://*.firebasedatabase.app/*"
+  ],
   "action": {
     "default_title": "ClipboardMig",
     "default_popup": "popup.html"
@@ -13,6 +17,6 @@
     "service_worker": "background.js"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' ws: wss:;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' ws: wss: https://*.firebaseio.com https://*.firebasedatabase.app;"
   }
 }

@@ -1,4 +1,9 @@
 const wsUrlInput = document.getElementById("ws-url");
+const transportModeInput = document.getElementById("transport-mode");
+const firebaseDbUrlInput = document.getElementById("firebase-db-url");
+const firebaseRoomInput = document.getElementById("firebase-room");
+const firebaseFields = document.getElementById("firebase-fields");
+const websocketFields = document.getElementById("websocket-fields");
 const statusText = document.getElementById("status");
 const lastText = document.getElementById("last-text");
 const lastTime = document.getElementById("last-time");
@@ -13,8 +18,11 @@ const statusDot = document.getElementById("status-dot");
 saveButton.addEventListener("click", async () => {
   const response = await chrome.runtime.sendMessage({
     target: "background",
-    type: "set-url",
-    wsUrl: wsUrlInput.value
+    type: "set-connection",
+    transportMode: transportModeInput.value,
+    wsUrl: wsUrlInput.value,
+    firebaseDbUrl: firebaseDbUrlInput.value,
+    firebaseRoom: firebaseRoomInput.value
   });
 
   if (!response?.ok) {
@@ -49,6 +57,8 @@ copyAllButton.addEventListener("click", async () => {
     : response?.error || "Could not copy history";
 });
 
+transportModeInput.addEventListener("change", updateTransportFields);
+
 chrome.storage.onChanged.addListener(refresh);
 refresh();
 
@@ -58,14 +68,31 @@ async function refresh() {
     type: "get-status"
   });
 
+  transportModeInput.value = response.transportMode || "firebase";
+  firebaseDbUrlInput.value = response.firebaseDbUrl || "";
+  firebaseRoomInput.value = response.firebaseRoom || "demo";
   wsUrlInput.value = response.wsUrl || "";
   statusText.textContent = response.status || "Not connected";
   lastText.textContent = response.lastText || "Nothing yet";
   lastTime.textContent = response.lastUpdatedAt || "";
-  statusDot.classList.toggle("connected", String(response.status || "").startsWith("Connected"));
+  statusDot.classList.toggle("connected", isConnectedStatus(response.status));
   statusDot.classList.toggle("syncing", String(response.status || "").startsWith("Synced"));
+  updateTransportFields();
 
   renderHistory(response.history || []);
+}
+
+function updateTransportFields() {
+  const firebaseMode = transportModeInput.value !== "websocket";
+  firebaseFields.hidden = !firebaseMode;
+  websocketFields.hidden = firebaseMode;
+}
+
+function isConnectedStatus(status) {
+  const value = String(status || "");
+  return value.startsWith("Connected")
+    || value.startsWith("Firebase relay listening")
+    || value.startsWith("Clipboard updated");
 }
 
 function renderHistory(history) {

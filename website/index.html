@@ -15,7 +15,7 @@
         </h1>
 
         <p class="intro">
-          Real-time cross-device clipboard sync system using Android, WebSockets, and a
+          Real-time cross-device clipboard sync system using Android, Firebase Cloud Relay, and a
           Chrome Extension with automatic clipboard transfer and history management.
         </p>
 
@@ -39,13 +39,13 @@
         </h2>
 
         <ul>
+          <li>Create a Firebase Realtime Database and copy its database URL.</li>
           <li>Install the ClipboardMig Chrome Extension in Google Chrome on your PC.</li>
-          <li>Open the extension and keep the generated WebSocket URL ready.</li>
+          <li>Open the extension, select Firebase Cloud, and paste the database URL.</li>
           <li>Install the ClipboardMig Android app on your phone.</li>
-          <li>Make sure your phone and PC are connected to the same Wi-Fi network.</li>
-          <li>Paste the WebSocket URL from the Chrome extension into the Android app.</li>
-          <li>Tap Start Capture to enable clipboard capture and synchronization.</li>
-          <li>Copy any text on your Android phone to sync it to your PC clipboard.</li>
+          <li>Paste the same Firebase Database URL and room code into the Android app.</li>
+          <li>Tap Start Capture to enable clipboard capture and Firebase synchronization.</li>
+          <li>Copy any text on your Android phone to sync it to your PC clipboard over the cloud.</li>
           <li>Paste the synced text anywhere on your computer using Ctrl + V.</li>
           <li>Open the Chrome extension anytime to view recently copied clipboard history.</li>
           <li>Click any saved clipboard item in the extension to restore it to your PC clipboard.</li>
@@ -59,4 +59,3 @@
     </main>
   </body>
 </html>
-

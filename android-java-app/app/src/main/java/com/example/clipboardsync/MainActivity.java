@@ -11,17 +11,26 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private static final String PREFS_NAME = "clipboardmig";
+    private static final String KEY_TRANSPORT_MODE = "transport_mode";
     private static final String KEY_WS_URL = "ws_url";
+    private static final String KEY_FIREBASE_DB_URL = "firebase_db_url";
+    private static final String KEY_FIREBASE_ROOM = "firebase_room";
     private static final String DEFAULT_WS_URL = "ws://192.168.60.109:8080?room=demo&token=changeme";
+    private static final String DEFAULT_FIREBASE_DB_URL = "https://clipboardmig-default-rtdb.firebaseio.com";
+    private static final String DEFAULT_FIREBASE_ROOM = "demo";
 
     private static final int COLOR_BG = Color.rgb(238, 242, 247);
     private static final int COLOR_PANEL = Color.WHITE;
@@ -34,7 +43,12 @@ public class MainActivity extends Activity {
     private static final int COLOR_RED = Color.rgb(220, 38, 38);
     private static final int COLOR_BORDER = Color.rgb(219, 227, 239);
 
+    private Spinner transportModeInput;
     private EditText wsUrlInput;
+    private EditText firebaseDbUrlInput;
+    private EditText firebaseRoomInput;
+    private LinearLayout firebaseFields;
+    private LinearLayout websocketFields;
     private TextView statusText;
     private TextView savedCountText;
     private TextView statusBadge;
@@ -127,18 +141,65 @@ public class MainActivity extends Activity {
     private LinearLayout createConnectionPanel() {
         LinearLayout panel = panel();
 
-        panel.addView(label("WEBSOCKET URL"), matchWrap());
+        panel.addView(label("RELAY MODE"), matchWrap());
+
+        transportModeInput = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                new String[] { "Firebase Cloud", "Local WebSocket" }
+        );
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        transportModeInput.setAdapter(adapter);
+        transportModeInput.setBackground(roundedStroke(Color.WHITE, Color.rgb(203, 213, 225), 8));
+        transportModeInput.setPadding(dp(8), 0, dp(8), 0);
+        panel.addView(transportModeInput, matchWrapWithTopMargin(8));
+
+        firebaseFields = verticalLayout();
+        firebaseFields.addView(label("FIREBASE DATABASE URL"), matchWrapWithTopMargin(12));
+
+        firebaseDbUrlInput = new EditText(this);
+        firebaseDbUrlInput.setSingleLine(true);
+        firebaseDbUrlInput.setText(prefs.getString(KEY_FIREBASE_DB_URL, DEFAULT_FIREBASE_DB_URL));
+        firebaseDbUrlInput.setHint("https://your-project-default-rtdb.firebaseio.com");
+        styleInput(firebaseDbUrlInput);
+        firebaseFields.addView(firebaseDbUrlInput, matchWrapWithTopMargin(8));
+
+        firebaseFields.addView(label("ROOM CODE"), matchWrapWithTopMargin(12));
+
+        firebaseRoomInput = new EditText(this);
+        firebaseRoomInput.setSingleLine(true);
+        firebaseRoomInput.setText(prefs.getString(KEY_FIREBASE_ROOM, DEFAULT_FIREBASE_ROOM));
+        firebaseRoomInput.setHint("demo");
+        styleInput(firebaseRoomInput);
+        firebaseFields.addView(firebaseRoomInput, matchWrapWithTopMargin(8));
+
+        panel.addView(firebaseFields, matchWrap());
+
+        websocketFields = verticalLayout();
+        websocketFields.addView(label("WEBSOCKET URL"), matchWrapWithTopMargin(12));
 
         wsUrlInput = new EditText(this);
         wsUrlInput.setSingleLine(true);
         wsUrlInput.setText(prefs.getString(KEY_WS_URL, DEFAULT_WS_URL));
         wsUrlInput.setHint("ws://PC_IP:8080?room=demo&token=changeme");
-        wsUrlInput.setTextSize(14);
-        wsUrlInput.setTextColor(COLOR_TEXT);
-        wsUrlInput.setHintTextColor(COLOR_MUTED);
-        wsUrlInput.setPadding(dp(12), dp(9), dp(12), dp(9));
-        wsUrlInput.setBackground(roundedStroke(Color.WHITE, Color.rgb(203, 213, 225), 8));
-        panel.addView(wsUrlInput, matchWrapWithTopMargin(8));
+        styleInput(wsUrlInput);
+        websocketFields.addView(wsUrlInput, matchWrapWithTopMargin(8));
+        panel.addView(websocketFields, matchWrap());
+
+        String mode = prefs.getString(KEY_TRANSPORT_MODE, ClipboardSyncService.TRANSPORT_FIREBASE);
+        transportModeInput.setSelection(ClipboardSyncService.TRANSPORT_WEBSOCKET.equals(mode) ? 1 : 0);
+        transportModeInput.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                updateRelayFields();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+        updateRelayFields();
 
         return panel;
     }
@@ -171,17 +232,34 @@ public class MainActivity extends Activity {
     }
 
     private void startSyncService(String action) {
+        String mode = selectedTransportMode();
         String wsUrl = wsUrlInput.getText().toString().trim();
-        if (!wsUrl.startsWith("ws://") && !wsUrl.startsWith("wss://")) {
+        String firebaseDbUrl = trimTrailingSlash(firebaseDbUrlInput.getText().toString());
+        String firebaseRoom = sanitizeRoom(firebaseRoomInput.getText().toString());
+
+        if (ClipboardSyncService.TRANSPORT_FIREBASE.equals(mode)) {
+            if (!firebaseDbUrl.startsWith("https://")) {
+                Toast.makeText(this, "Firebase DB URL must start with https://", Toast.LENGTH_LONG).show();
+                return;
+            }
+        } else if (!wsUrl.startsWith("ws://") && !wsUrl.startsWith("wss://")) {
             Toast.makeText(this, "WebSocket URL must start with ws:// or wss://", Toast.LENGTH_LONG).show();
             return;
         }
 
-        prefs.edit().putString(KEY_WS_URL, wsUrl).apply();
+        prefs.edit()
+                .putString(KEY_TRANSPORT_MODE, mode)
+                .putString(KEY_WS_URL, wsUrl)
+                .putString(KEY_FIREBASE_DB_URL, firebaseDbUrl)
+                .putString(KEY_FIREBASE_ROOM, firebaseRoom)
+                .apply();
 
         Intent intent = new Intent(this, ClipboardSyncService.class);
         intent.setAction(action);
+        intent.putExtra(ClipboardSyncService.EXTRA_TRANSPORT_MODE, mode);
         intent.putExtra(ClipboardSyncService.EXTRA_WS_URL, wsUrl);
+        intent.putExtra(ClipboardSyncService.EXTRA_FIREBASE_DB_URL, firebaseDbUrl);
+        intent.putExtra(ClipboardSyncService.EXTRA_FIREBASE_ROOM, firebaseRoom);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent);
@@ -194,7 +272,7 @@ public class MainActivity extends Activity {
         } else if (ClipboardSyncService.ACTION_SYNC_HISTORY.equals(action)) {
             updateStatus("Syncing saved phone history", "Syncing", COLOR_BLUE, COLOR_BLUE_SOFT);
         } else {
-            updateStatus("Capture running", "Active", COLOR_GREEN, COLOR_GREEN_SOFT);
+            updateStatus("Capture running via " + relayLabel(), "Active", COLOR_GREEN, COLOR_GREEN_SOFT);
         }
 
         refreshSavedCount();
@@ -259,7 +337,7 @@ public class MainActivity extends Activity {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
         }
     }
 
@@ -302,6 +380,44 @@ public class MainActivity extends Activity {
         button.setMinHeight(dp(46));
         button.setPadding(dp(12), 0, dp(12), 0);
         button.setBackground(rounded(bgColor, 9));
+    }
+
+    private void styleInput(EditText input) {
+        input.setTextSize(14);
+        input.setTextColor(COLOR_TEXT);
+        input.setHintTextColor(COLOR_MUTED);
+        input.setPadding(dp(12), dp(9), dp(12), dp(9));
+        input.setBackground(roundedStroke(Color.WHITE, Color.rgb(203, 213, 225), 8));
+    }
+
+    private void updateRelayFields() {
+        boolean firebaseMode = ClipboardSyncService.TRANSPORT_FIREBASE.equals(selectedTransportMode());
+        firebaseFields.setVisibility(firebaseMode ? View.VISIBLE : View.GONE);
+        websocketFields.setVisibility(firebaseMode ? View.GONE : View.VISIBLE);
+    }
+
+    private String selectedTransportMode() {
+        return transportModeInput != null && transportModeInput.getSelectedItemPosition() == 1
+                ? ClipboardSyncService.TRANSPORT_WEBSOCKET
+                : ClipboardSyncService.TRANSPORT_FIREBASE;
+    }
+
+    private String relayLabel() {
+        return ClipboardSyncService.TRANSPORT_WEBSOCKET.equals(selectedTransportMode()) ? "WebSocket" : "Firebase";
+    }
+
+    private String trimTrailingSlash(String value) {
+        String result = value == null ? "" : value.trim();
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
+    }
+
+    private String sanitizeRoom(String value) {
+        String result = value == null ? "" : value.trim();
+        result = result.replaceAll("[.#$\\[\\]/]", "-");
+        return result.isEmpty() ? DEFAULT_FIREBASE_ROOM : result;
     }
 
     private GradientDrawable rounded(int color, int radiusDp) {

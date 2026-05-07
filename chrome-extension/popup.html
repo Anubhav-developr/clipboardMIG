@@ -16,11 +16,27 @@
       </header>
 
       <section class="connection-panel">
-        <label for="ws-url">WebSocket URL</label>
-        <input id="ws-url" type="text" spellcheck="false" placeholder="ws://192.168.1.20:8080?room=demo&token=changeme">
+        <label for="transport-mode">Relay Mode</label>
+        <select id="transport-mode">
+          <option value="firebase">Firebase Cloud</option>
+          <option value="websocket">Local WebSocket</option>
+        </select>
+
+        <div id="firebase-fields">
+          <label for="firebase-db-url">Firebase Database URL</label>
+          <input id="firebase-db-url" type="text" spellcheck="false" placeholder="https://your-project-default-rtdb.firebaseio.com">
+
+          <label for="firebase-room">Room Code</label>
+          <input id="firebase-room" type="text" spellcheck="false" placeholder="demo">
+        </div>
+
+        <div id="websocket-fields">
+          <label for="ws-url">WebSocket URL</label>
+          <input id="ws-url" type="text" spellcheck="false" placeholder="ws://192.168.1.20:8080?room=demo&token=changeme">
+        </div>
 
         <div class="actions">
-          <button id="save">Save & Reconnect</button>
+          <button id="save">Save & Connect</button>
           <button id="reconnect" type="button">Reconnect</button>
         </div>
       </section>

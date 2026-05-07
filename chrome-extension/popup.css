@@ -61,7 +61,8 @@ label,
   text-transform: uppercase;
 }
 
-input {
+input,
+select {
   width: 100%;
   padding: 10px 11px;
   border: 1px solid #cbd5e1;
@@ -70,7 +71,19 @@ input {
   background: #ffffff;
 }
 
-input:focus {
+select {
+  color: #111827;
+}
+
+input + label,
+select + div,
+#firebase-fields label,
+#websocket-fields label {
+  margin-top: 10px;
+}
+
+input:focus,
+select:focus {
   border-color: #2563eb;
   outline: 2px solid rgba(37, 99, 235, 0.16);
 }

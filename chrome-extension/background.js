@@ -1,16 +1,34 @@
-const DEFAULT_WS_URL = "ws://192.168.60.109:8080?room=demo&token=changeme";
+const DEFAULT_WS_URL = "ws://127.0.0.1:8080?room=demo&token=changeme";
+const DEFAULT_TRANSPORT_MODE = "firebase";
+const DEFAULT_FIREBASE_DB_URL = "https://clipboardmig-default-rtdb.firebaseio.com";
+const DEFAULT_FIREBASE_ROOM = "demo";
+const FIREBASE_POLL_MS = 2500;
 const HISTORY_LIMIT = 20;
 
 let socket = null;
 let reconnectTimer = null;
+let firebasePollTimer = null;
 let currentUrl = DEFAULT_WS_URL;
+let currentFirebaseUrl = "";
+let currentFirebaseRoom = DEFAULT_FIREBASE_ROOM;
+let lastFirebaseMessageId = "";
 let manualClose = false;
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const stored = await chrome.storage.local.get(["wsUrl"]);
-  if (!stored.wsUrl) {
-    await chrome.storage.local.set({ wsUrl: DEFAULT_WS_URL });
-  }
+  const stored = await chrome.storage.local.get([
+    "transportMode",
+    "wsUrl",
+    "firebaseDbUrl",
+    "firebaseRoom"
+  ]);
+
+  await chrome.storage.local.set({
+    transportMode: stored.transportMode || DEFAULT_TRANSPORT_MODE,
+    wsUrl: stored.wsUrl || DEFAULT_WS_URL,
+    firebaseDbUrl: stored.firebaseDbUrl || DEFAULT_FIREBASE_DB_URL,
+    firebaseRoom: stored.firebaseRoom || DEFAULT_FIREBASE_ROOM
+  });
+
   await connect();
 });
 
@@ -18,12 +36,28 @@ chrome.runtime.onStartup.addListener(connect);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.target === "background" && message.type === "get-status") {
-    chrome.storage.local.get(["wsUrl", "status", "lastText", "lastUpdatedAt", "history"], sendResponse);
+    chrome.storage.local.get([
+      "transportMode",
+      "wsUrl",
+      "firebaseDbUrl",
+      "firebaseRoom",
+      "status",
+      "lastText",
+      "lastUpdatedAt",
+      "history"
+    ], sendResponse);
+    return true;
+  }
+
+  if (message?.target === "background" && message.type === "set-connection") {
+    setConnectionAndReconnect(message)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
   }
 
   if (message?.target === "background" && message.type === "set-url") {
-    setUrlAndReconnect(message.wsUrl)
+    setConnectionAndReconnect({ transportMode: "websocket", wsUrl: message.wsUrl })
       .then(() => sendResponse({ ok: true }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
@@ -60,31 +94,96 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-async function setUrlAndReconnect(wsUrl) {
-  const trimmedUrl = String(wsUrl || "").trim();
-  if (!trimmedUrl.startsWith("ws://") && !trimmedUrl.startsWith("wss://")) {
-    throw new Error("URL must start with ws:// or wss://");
+async function setConnectionAndReconnect(message) {
+  const transportMode = message.transportMode === "websocket" ? "websocket" : "firebase";
+  const values = { transportMode };
+
+  if (transportMode === "firebase") {
+    const firebaseDbUrl = normalizeFirebaseDbUrl(message.firebaseDbUrl || "");
+    const firebaseRoom = sanitizeRoom(message.firebaseRoom || DEFAULT_FIREBASE_ROOM);
+
+    if (!firebaseDbUrl) {
+      throw new Error("Firebase Database URL required");
+    }
+
+    values.firebaseDbUrl = firebaseDbUrl;
+    values.firebaseRoom = firebaseRoom;
+  } else {
+    const trimmedUrl = String(message.wsUrl || "").trim();
+    if (!trimmedUrl.startsWith("ws://") && !trimmedUrl.startsWith("wss://")) {
+      throw new Error("URL must start with ws:// or wss://");
+    }
+
+    values.wsUrl = trimmedUrl;
   }
 
-  await chrome.storage.local.set({ wsUrl: trimmedUrl });
+  await chrome.storage.local.set(values);
   await connect();
 }
 
 async function connect() {
-  const stored = await chrome.storage.local.get(["wsUrl"]);
-  currentUrl = stored.wsUrl || DEFAULT_WS_URL;
-  manualClose = true;
+  const stored = await chrome.storage.local.get([
+    "transportMode",
+    "wsUrl",
+    "firebaseDbUrl",
+    "firebaseRoom"
+  ]);
 
-  if (socket) {
-    socket.close();
-    socket = null;
+  stopFirebasePolling();
+  closeWebSocket();
+
+  const transportMode = stored.transportMode || DEFAULT_TRANSPORT_MODE;
+  if (transportMode === "websocket") {
+    await connectWebSocket(stored.wsUrl || DEFAULT_WS_URL);
+    return;
   }
 
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
+  await connectFirebase(stored.firebaseDbUrl || DEFAULT_FIREBASE_DB_URL, stored.firebaseRoom || DEFAULT_FIREBASE_ROOM);
+}
+
+async function connectFirebase(firebaseDbUrl, firebaseRoom) {
+  currentFirebaseUrl = normalizeFirebaseDbUrl(firebaseDbUrl);
+  currentFirebaseRoom = sanitizeRoom(firebaseRoom);
+  lastFirebaseMessageId = "";
+
+  if (!currentFirebaseUrl) {
+    await setStatus("Add Firebase DB URL, then Save & Connect");
+    return;
   }
 
+  await setStatus(`Firebase relay listening: ${currentFirebaseRoom}`);
+  await pollFirebaseOnce();
+
+  firebasePollTimer = setInterval(pollFirebaseOnce, FIREBASE_POLL_MS);
+}
+
+async function pollFirebaseOnce() {
+  if (!currentFirebaseUrl || !currentFirebaseRoom) return;
+
+  try {
+    const response = await fetch(firebaseLatestUrl(currentFirebaseUrl, currentFirebaseRoom), {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`Firebase ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data) return;
+
+    const messageId = String(data.messageId || data.sentAt || JSON.stringify(data));
+    if (messageId === lastFirebaseMessageId) return;
+
+    lastFirebaseMessageId = messageId;
+    await handleIncomingPayload(data);
+  } catch (error) {
+    await setStatus(`Firebase error: ${error.message}`);
+  }
+}
+
+async function connectWebSocket(wsUrl) {
+  currentUrl = wsUrl;
   manualClose = false;
   await setStatus(`Connecting to ${currentUrl}`);
 
@@ -131,13 +230,38 @@ function scheduleReconnect() {
   }, 3000);
 }
 
+function closeWebSocket() {
+  manualClose = true;
+
+  if (socket) {
+    socket.close();
+    socket = null;
+  }
+
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
+  manualClose = false;
+}
+
+function stopFirebasePolling() {
+  if (firebasePollTimer) {
+    clearInterval(firebasePollTimer);
+    firebasePollTimer = null;
+  }
+}
+
 async function setStatus(status) {
   await chrome.storage.local.set({ status });
 }
 
 async function handleIncomingMessage(rawMessage) {
-  const message = parseClipboardMessage(rawMessage);
+  await handleIncomingPayload(parseClipboardMessage(rawMessage));
+}
 
+async function handleIncomingPayload(message) {
   if (message.type === "historySync") {
     const entries = normalizeHistory(message.items);
     await mergeClipboardHistory(entries);
@@ -287,4 +411,16 @@ function normalizeHistory(history) {
       };
     })
     .filter((item) => item.text);
+}
+
+function normalizeFirebaseDbUrl(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function sanitizeRoom(value) {
+  return String(value || DEFAULT_FIREBASE_ROOM).trim().replace(/[.#$[\]/]/g, "-") || DEFAULT_FIREBASE_ROOM;
+}
+
+function firebaseLatestUrl(dbUrl, room) {
+  return `${normalizeFirebaseDbUrl(dbUrl)}/rooms/${encodeURIComponent(sanitizeRoom(room))}/latest.json`;
 }
