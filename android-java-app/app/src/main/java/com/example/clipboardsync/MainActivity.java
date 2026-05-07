@@ -1,0 +1,319 @@
+package com.example.clipboardsync;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.Gravity;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+public class MainActivity extends Activity {
+    private static final String PREFS_NAME = "clipboardmig";
+    private static final String KEY_WS_URL = "ws_url";
+    private static final String DEFAULT_WS_URL = "ws://192.168.60.109:8080?room=demo&token=changeme";
+
+    private static final int COLOR_BG = Color.rgb(238, 242, 247);
+    private static final int COLOR_PANEL = Color.WHITE;
+    private static final int COLOR_TEXT = Color.rgb(17, 24, 39);
+    private static final int COLOR_MUTED = Color.rgb(100, 116, 139);
+    private static final int COLOR_BLUE = Color.rgb(37, 99, 235);
+    private static final int COLOR_BLUE_SOFT = Color.rgb(219, 234, 254);
+    private static final int COLOR_GREEN = Color.rgb(22, 163, 74);
+    private static final int COLOR_GREEN_SOFT = Color.rgb(220, 252, 231);
+    private static final int COLOR_RED = Color.rgb(220, 38, 38);
+    private static final int COLOR_BORDER = Color.rgb(219, 227, 239);
+
+    private EditText wsUrlInput;
+    private TextView statusText;
+    private TextView savedCountText;
+    private TextView statusBadge;
+    private SharedPreferences prefs;
+    private ClipboardHistoryStore historyStore;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        historyStore = new ClipboardHistoryStore(this);
+
+        requestNotificationPermission();
+        setSystemBars();
+        buildUi();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshSavedCount();
+    }
+
+    private void buildUi() {
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+        scrollView.setBackgroundColor(COLOR_BG);
+
+        LinearLayout root = verticalLayout();
+        root.setPadding(dp(18), dp(22), dp(18), dp(22));
+        scrollView.addView(root, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+        ));
+
+        root.addView(createHeader(), matchWrap());
+        root.addView(createStatusPanel(), matchWrapWithTopMargin(18));
+        root.addView(createConnectionPanel(), matchWrapWithTopMargin(12));
+        root.addView(createActionsPanel(), matchWrapWithTopMargin(12));
+
+        setContentView(scrollView);
+        refreshSavedCount();
+    }
+
+    private LinearLayout createHeader() {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout titleBlock = verticalLayout();
+
+        TextView title = text("ClipboardMig", 28, COLOR_TEXT, Typeface.BOLD);
+        titleBlock.addView(title, matchWrap());
+
+        TextView subtitle = text("Phone clipboard capture", 13, COLOR_MUTED, Typeface.NORMAL);
+        subtitle.setPadding(0, dp(2), 0, 0);
+        titleBlock.addView(subtitle, matchWrap());
+
+        header.addView(titleBlock, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        statusBadge = text("Ready", 12, COLOR_GREEN, Typeface.BOLD);
+        statusBadge.setGravity(Gravity.CENTER);
+        statusBadge.setPadding(dp(12), dp(7), dp(12), dp(7));
+        statusBadge.setBackground(roundedStroke(COLOR_GREEN_SOFT, COLOR_GREEN, 999));
+        header.addView(statusBadge, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        return header;
+    }
+
+    private LinearLayout createStatusPanel() {
+        LinearLayout panel = panel();
+
+        TextView label = label("LOCAL HISTORY");
+        panel.addView(label, matchWrap());
+
+        savedCountText = text("0 items saved", 24, COLOR_TEXT, Typeface.BOLD);
+        savedCountText.setPadding(0, dp(6), 0, 0);
+        panel.addView(savedCountText, matchWrap());
+
+        statusText = text("Idle", 14, COLOR_MUTED, Typeface.NORMAL);
+        statusText.setPadding(0, dp(8), 0, 0);
+        panel.addView(statusText, matchWrap());
+
+        return panel;
+    }
+
+    private LinearLayout createConnectionPanel() {
+        LinearLayout panel = panel();
+
+        panel.addView(label("WEBSOCKET URL"), matchWrap());
+
+        wsUrlInput = new EditText(this);
+        wsUrlInput.setSingleLine(true);
+        wsUrlInput.setText(prefs.getString(KEY_WS_URL, DEFAULT_WS_URL));
+        wsUrlInput.setHint("ws://PC_IP:8080?room=demo&token=changeme");
+        wsUrlInput.setTextSize(14);
+        wsUrlInput.setTextColor(COLOR_TEXT);
+        wsUrlInput.setHintTextColor(COLOR_MUTED);
+        wsUrlInput.setPadding(dp(12), dp(9), dp(12), dp(9));
+        wsUrlInput.setBackground(roundedStroke(Color.WHITE, Color.rgb(203, 213, 225), 8));
+        panel.addView(wsUrlInput, matchWrapWithTopMargin(8));
+
+        return panel;
+    }
+
+    private LinearLayout createActionsPanel() {
+        LinearLayout panel = panel();
+        panel.addView(label("ACTIONS"), matchWrap());
+
+        Button startButton = new Button(this);
+        styleButton(startButton, "Start Capture", COLOR_GREEN, Color.WHITE);
+        startButton.setOnClickListener(view -> startSyncService(ClipboardSyncService.ACTION_START));
+        panel.addView(startButton, matchWrapWithTopMargin(10));
+
+        Button syncHistoryButton = new Button(this);
+        styleButton(syncHistoryButton, "Sync Saved History", COLOR_BLUE, Color.WHITE);
+        syncHistoryButton.setOnClickListener(view -> startSyncService(ClipboardSyncService.ACTION_SYNC_HISTORY));
+        panel.addView(syncHistoryButton, matchWrapWithTopMargin(8));
+
+        Button sendNowButton = new Button(this);
+        styleButton(sendNowButton, "Send Current Clipboard", COLOR_BLUE_SOFT, COLOR_BLUE);
+        sendNowButton.setOnClickListener(view -> startSyncService(ClipboardSyncService.ACTION_SEND_NOW));
+        panel.addView(sendNowButton, matchWrapWithTopMargin(8));
+
+        Button stopButton = new Button(this);
+        styleButton(stopButton, "Stop Capture", Color.rgb(254, 226, 226), COLOR_RED);
+        stopButton.setOnClickListener(view -> stopSyncService());
+        panel.addView(stopButton, matchWrapWithTopMargin(8));
+
+        return panel;
+    }
+
+    private void startSyncService(String action) {
+        String wsUrl = wsUrlInput.getText().toString().trim();
+        if (!wsUrl.startsWith("ws://") && !wsUrl.startsWith("wss://")) {
+            Toast.makeText(this, "WebSocket URL must start with ws:// or wss://", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        prefs.edit().putString(KEY_WS_URL, wsUrl).apply();
+
+        Intent intent = new Intent(this, ClipboardSyncService.class);
+        intent.setAction(action);
+        intent.putExtra(ClipboardSyncService.EXTRA_WS_URL, wsUrl);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
+
+        if (ClipboardSyncService.ACTION_SEND_NOW.equals(action)) {
+            updateStatus("Sending current clipboard", "Sending", COLOR_BLUE, COLOR_BLUE_SOFT);
+        } else if (ClipboardSyncService.ACTION_SYNC_HISTORY.equals(action)) {
+            updateStatus("Syncing saved phone history", "Syncing", COLOR_BLUE, COLOR_BLUE_SOFT);
+        } else {
+            updateStatus("Capture running", "Active", COLOR_GREEN, COLOR_GREEN_SOFT);
+        }
+
+        refreshSavedCount();
+    }
+
+    private void stopSyncService() {
+        Intent intent = new Intent(this, ClipboardSyncService.class);
+        intent.setAction(ClipboardSyncService.ACTION_STOP);
+        startService(intent);
+        updateStatus("Stopped", "Stopped", COLOR_RED, Color.rgb(254, 226, 226));
+        refreshSavedCount();
+    }
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 100);
+        }
+    }
+
+    private LinearLayout.LayoutParams matchWrap() {
+        return new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+    }
+
+    private LinearLayout.LayoutParams matchWrapWithTopMargin(int topMarginDp) {
+        LinearLayout.LayoutParams params = matchWrap();
+        params.topMargin = dp(topMarginDp);
+        return params;
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void refreshSavedCount() {
+        if (savedCountText == null || historyStore == null) {
+            return;
+        }
+
+        int count = historyStore.count();
+        savedCountText.setText(count + " saved item" + (count == 1 ? "" : "s"));
+    }
+
+    private void updateStatus(String status, String badge, int badgeTextColor, int badgeBgColor) {
+        if (statusText != null) {
+            statusText.setText(status);
+        }
+
+        if (statusBadge != null) {
+            statusBadge.setText(badge);
+            statusBadge.setTextColor(badgeTextColor);
+            statusBadge.setBackground(roundedStroke(badgeBgColor, badgeTextColor, 999));
+        }
+    }
+
+    private void setSystemBars() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setStatusBarColor(COLOR_BG);
+            getWindow().setNavigationBarColor(COLOR_BG);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        }
+    }
+
+    private LinearLayout verticalLayout() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        return layout;
+    }
+
+    private LinearLayout panel() {
+        LinearLayout panel = verticalLayout();
+        panel.setPadding(dp(14), dp(14), dp(14), dp(14));
+        panel.setBackground(roundedStroke(COLOR_PANEL, COLOR_BORDER, 10));
+        return panel;
+    }
+
+    private TextView label(String value) {
+        TextView textView = text(value, 12, COLOR_MUTED, Typeface.BOLD);
+        textView.setAllCaps(false);
+        return textView;
+    }
+
+    private TextView text(String value, int sizeSp, int color, int style) {
+        TextView textView = new TextView(this);
+        textView.setText(value);
+        textView.setTextSize(sizeSp);
+        textView.setTextColor(color);
+        textView.setTypeface(Typeface.DEFAULT, style);
+        textView.setIncludeFontPadding(true);
+        return textView;
+    }
+
+    private void styleButton(Button button, String label, int bgColor, int textColor) {
+        button.setText(label);
+        button.setAllCaps(false);
+        button.setTextSize(14);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setTextColor(textColor);
+        button.setGravity(Gravity.CENTER);
+        button.setMinHeight(dp(46));
+        button.setPadding(dp(12), 0, dp(12), 0);
+        button.setBackground(rounded(bgColor, 9));
+    }
+
+    private GradientDrawable rounded(int color, int radiusDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(radiusDp));
+        return drawable;
+    }
+
+    private GradientDrawable roundedStroke(int color, int strokeColor, int radiusDp) {
+        GradientDrawable drawable = rounded(color, radiusDp);
+        drawable.setStroke(dp(1), strokeColor);
+        return drawable;
+    }
+}

@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "ClipboardMig",
+  "description": "Receive phone clipboard text over WebSocket and copy it to this PC.",
+  "version": "1.0.0",
+  "minimum_chrome_version": "116",
+  "permissions": ["clipboardWrite", "offscreen", "storage"],
+  "action": {
+    "default_title": "ClipboardMig",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' ws: wss:;"
+  }
+}

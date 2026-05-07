@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>ClipboardMig</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>ClipboardMig</h1>
+          <p id="history-count">0 saved items</p>
+        </div>
+        <span id="status-dot" aria-hidden="true"></span>
+      </header>
+
+      <section class="connection-panel">
+        <label for="ws-url">WebSocket URL</label>
+        <input id="ws-url" type="text" spellcheck="false" placeholder="ws://192.168.1.20:8080?room=demo&token=changeme">
+
+        <div class="actions">
+          <button id="save">Save & Reconnect</button>
+          <button id="reconnect" type="button">Reconnect</button>
+        </div>
+      </section>
+
+      <section class="status-panel">
+        <p class="label">Status</p>
+        <p id="status">Loading...</p>
+      </section>
+
+      <section class="last-panel">
+        <p class="label">Last copied</p>
+        <p id="last-text">Nothing yet</p>
+        <p id="last-time"></p>
+      </section>
+
+      <section class="history-section">
+        <div class="history-head">
+          <p class="label">Clipboard History</p>
+          <div class="history-actions">
+            <button id="copy-all" class="link-button" type="button">Copy All</button>
+            <button id="clear-history" class="link-button" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="history" class="history-list"></div>
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

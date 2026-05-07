@@ -1,0 +1,232 @@
+:root {
+  --page-bg: #e1e6d8;
+  --panel-bg: #dae2d3;
+  --blue: #2913f2;
+  --orange: #f48c31;
+  --red: #f61818;
+  --ink: #050505;
+  --shadow: rgba(0, 0, 0, 0.25);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--page-bg);
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  color: var(--ink);
+  background: var(--page-bg);
+  font-family: "Intel One Mono", "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+a {
+  color: inherit;
+}
+
+.page-shell {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+  padding: 58px 80px 72px;
+}
+
+.hero {
+  text-align: center;
+}
+
+.brand {
+  margin: 0;
+  font-size: clamp(34px, 3.2vw, 40px);
+  line-height: 1.1;
+  letter-spacing: 0;
+  text-shadow: 10px 8px 4px var(--shadow);
+}
+
+.brand span {
+  color: var(--blue);
+}
+
+.brand strong {
+  color: #f58c4a;
+}
+
+.intro {
+  max-width: 980px;
+  margin: 78px auto 0;
+  font-size: clamp(14px, 1.55vw, 20px);
+  line-height: 1.35;
+  text-shadow: 10px 8px 4px var(--shadow);
+}
+
+.download-nav {
+  display: flex;
+  justify-content: center;
+  gap: clamp(42px, 9vw, 132px);
+  margin-top: 42px;
+  flex-wrap: wrap;
+}
+
+.download-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 4px;
+  border-radius: 6px;
+  color: var(--blue);
+  font-size: clamp(22px, 2.5vw, 32px);
+  line-height: 1.25;
+  text-decoration: none;
+  text-shadow: 10px 8px 4px var(--shadow);
+}
+
+.download-link:last-child {
+  font-size: clamp(20px, 2.35vw, 30px);
+}
+
+.download-link strong {
+  color: var(--orange);
+  font-weight: 400;
+}
+
+.download-link:hover,
+.download-link:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 7px;
+}
+
+.product-preview {
+  width: min(100%, 830px);
+  margin: 220px auto 0;
+  border-radius: 12px;
+  box-shadow: 7px 4px 4px var(--shadow);
+  overflow: hidden;
+}
+
+.product-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.usage {
+  width: min(100%, 990px);
+  margin: 92px auto 0;
+}
+
+.usage h2 {
+  margin: 0 0 38px;
+  font-size: clamp(24px, 2.35vw, 30px);
+  line-height: 1.2;
+  font-weight: 400;
+  text-align: center;
+  text-shadow: 10px 8px 4px var(--shadow);
+}
+
+.usage h2 span {
+  color: var(--blue);
+}
+
+.usage h2 em {
+  color: var(--red);
+  font-style: normal;
+}
+
+.usage h2 strong {
+  color: var(--orange);
+  font-weight: 400;
+}
+
+.usage ul {
+  margin: 0;
+  padding-left: 22px;
+  font-size: clamp(14px, 1.55vw, 20px);
+  line-height: 1.45;
+  text-shadow: 5px 4px 4px var(--shadow);
+}
+
+.contribute {
+  width: min(100%, 570px);
+  margin: 70px auto 0;
+  padding: 34px 22px;
+  background: var(--panel-bg);
+  text-align: center;
+}
+
+.contribute p {
+  margin: 0;
+  font-size: clamp(14px, 1.55vw, 20px);
+  line-height: 1.4;
+}
+
+.contribute p:first-child {
+  color: var(--orange);
+  font-weight: 700;
+}
+
+.contribute span {
+  color: var(--blue);
+}
+
+.contribute a {
+  color: var(--orange);
+  text-decoration: none;
+}
+
+.contribute a:hover,
+.contribute a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 760px) {
+  .page-shell {
+    padding: 34px 18px 44px;
+  }
+
+  .intro {
+    margin-top: 38px;
+  }
+
+  .download-nav {
+    gap: 18px;
+    margin-top: 30px;
+  }
+
+  .download-link {
+    width: 100%;
+    justify-content: center;
+    min-height: 52px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.32);
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.08);
+  }
+
+  .product-preview {
+    margin-top: 54px;
+  }
+
+  .usage {
+    margin-top: 60px;
+  }
+
+  .usage h2 {
+    margin-bottom: 24px;
+  }
+
+  .usage ul {
+    padding-left: 18px;
+  }
+
+  .contribute {
+    margin-top: 48px;
+  }
+}
+
