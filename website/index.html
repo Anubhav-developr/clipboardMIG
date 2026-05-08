@@ -4,10 +4,20 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ClipboardMig</title>
-    <meta name="description" content="Real-time cross-device clipboard sync using Android, WebSockets, and a Chrome Extension.">
+    <meta name="description" content="Real-time cross-device clipboard sync using Android, Firebase Cloud Relay, and a Chrome Extension.">
     <link rel="stylesheet" href="styles.css">
   </head>
-  <body>
+  <body class="page-loading">
+    <div class="loader" aria-hidden="true">
+      <div class="loader-panel">
+        <p class="loader-brand"><span>Clipboard</span><strong>MIG</strong></p>
+        <div class="loader-track">
+          <span></span>
+        </div>
+        <p class="loader-copy">Linking your phone and PC clipboard...</p>
+      </div>
+    </div>
+
     <main class="page-shell">
       <section class="hero" aria-labelledby="page-title">
         <h1 id="page-title" class="brand">
@@ -39,16 +49,16 @@
         </h2>
 
         <ul>
-          <li>Create a Firebase Realtime Database and copy its database URL.</li>
-          <li>Install the ClipboardMig Chrome Extension in Google Chrome on your PC.</li>
-          <li>Open the extension, select Firebase Cloud, and paste the database URL.</li>
-          <li>Install the ClipboardMig Android app on your phone.</li>
-          <li>Paste the same Firebase Database URL and room code into the Android app.</li>
-          <li>Tap Start Capture to enable clipboard capture and Firebase synchronization.</li>
-          <li>Copy any text on your Android phone to sync it to your PC clipboard over the cloud.</li>
-          <li>Paste the synced text anywhere on your computer using Ctrl + V.</li>
-          <li>Open the Chrome extension anytime to view recently copied clipboard history.</li>
-          <li>Click any saved clipboard item in the extension to restore it to your PC clipboard.</li>
+          <li>Add your Firebase URL once, then keep the same room code on both your phone and PC.</li>
+          <li>Install the ClipboardMig Chrome Extension in Google Chrome on your computer.</li>
+          <li>Open the extension, choose Firebase Cloud, and tap Save &amp; Connect.</li>
+          <li>Install the ClipboardMig app on your Android phone.</li>
+          <li>Paste the same Firebase URL and room code into the app.</li>
+          <li>Tap Start Capture so the app is ready to watch what you copy.</li>
+          <li>Copy any text or link on your phone and it will travel to your PC clipboard.</li>
+          <li>Paste it anywhere on your computer with Ctrl + V, just like normal.</li>
+          <li>Open the extension anytime to see your recent copied items.</li>
+          <li>Tap any saved item in the extension if you want to bring it back again.</li>
         </ul>
       </section>
 
@@ -57,5 +67,14 @@
         <p><span>reach me :</span> <a href="mailto:anubhavm1234@gmail.com">anubhavm1234@gmail.com</a></p>
       </section>
     </main>
+
+    <script>
+      window.addEventListener("load", () => {
+        window.setTimeout(() => {
+          document.body.classList.remove("page-loading");
+          document.body.classList.add("page-ready");
+        }, 900);
+      });
+    </script>
   </body>
 </html>
