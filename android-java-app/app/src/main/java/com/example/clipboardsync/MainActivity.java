@@ -160,7 +160,7 @@ public class MainActivity extends Activity {
 
         firebaseDbUrlInput = new EditText(this);
         firebaseDbUrlInput.setSingleLine(true);
-        firebaseDbUrlInput.setText(prefs.getString(KEY_FIREBASE_DB_URL, DEFAULT_FIREBASE_DB_URL));
+        firebaseDbUrlInput.setText(prefOrDefault(KEY_FIREBASE_DB_URL, DEFAULT_FIREBASE_DB_URL));
         firebaseDbUrlInput.setHint("https://your-project-default-rtdb.firebaseio.com");
         styleInput(firebaseDbUrlInput);
         firebaseFields.addView(firebaseDbUrlInput, matchWrapWithTopMargin(8));
@@ -169,7 +169,7 @@ public class MainActivity extends Activity {
 
         firebaseRoomInput = new EditText(this);
         firebaseRoomInput.setSingleLine(true);
-        firebaseRoomInput.setText(prefs.getString(KEY_FIREBASE_ROOM, DEFAULT_FIREBASE_ROOM));
+        firebaseRoomInput.setText(prefOrDefault(KEY_FIREBASE_ROOM, DEFAULT_FIREBASE_ROOM));
         firebaseRoomInput.setHint("demo");
         styleInput(firebaseRoomInput);
         firebaseFields.addView(firebaseRoomInput, matchWrapWithTopMargin(8));
@@ -181,7 +181,7 @@ public class MainActivity extends Activity {
 
         wsUrlInput = new EditText(this);
         wsUrlInput.setSingleLine(true);
-        wsUrlInput.setText(prefs.getString(KEY_WS_URL, DEFAULT_WS_URL));
+        wsUrlInput.setText(prefOrDefault(KEY_WS_URL, DEFAULT_WS_URL));
         wsUrlInput.setHint("ws://PC_IP:8080?room=demo&token=changeme");
         styleInput(wsUrlInput);
         websocketFields.addView(wsUrlInput, matchWrapWithTopMargin(8));
@@ -418,6 +418,11 @@ public class MainActivity extends Activity {
         String result = value == null ? "" : value.trim();
         result = result.replaceAll("[.#$\\[\\]/]", "-");
         return result.isEmpty() ? DEFAULT_FIREBASE_ROOM : result;
+    }
+
+    private String prefOrDefault(String key, String fallback) {
+        String value = prefs.getString(key, fallback);
+        return value == null || value.trim().isEmpty() ? fallback : value;
     }
 
     private GradientDrawable rounded(int color, int radiusDp) {

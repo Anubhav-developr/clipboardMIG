@@ -1,4 +1,6 @@
 const wsUrlInput = document.getElementById("ws-url");
+const DEFAULT_FIREBASE_DB_URL = "https://clipboardmig-default-rtdb.firebaseio.com";
+const DEFAULT_FIREBASE_ROOM = "demo";
 const transportModeInput = document.getElementById("transport-mode");
 const firebaseDbUrlInput = document.getElementById("firebase-db-url");
 const firebaseRoomInput = document.getElementById("firebase-room");
@@ -14,6 +16,16 @@ const copyAllButton = document.getElementById("copy-all");
 const historyContainer = document.getElementById("history");
 const historyCount = document.getElementById("history-count");
 const statusDot = document.getElementById("status-dot");
+let connectionDirty = false;
+
+[transportModeInput, firebaseDbUrlInput, firebaseRoomInput, wsUrlInput].forEach((input) => {
+  input.addEventListener("input", () => {
+    connectionDirty = true;
+  });
+  input.addEventListener("change", () => {
+    connectionDirty = true;
+  });
+});
 
 saveButton.addEventListener("click", async () => {
   const response = await chrome.runtime.sendMessage({
@@ -27,7 +39,11 @@ saveButton.addEventListener("click", async () => {
 
   if (!response?.ok) {
     statusText.textContent = response?.error || "Could not save URL";
+    return;
   }
+
+  connectionDirty = false;
+  await refresh({ syncConnectionInputs: true });
 });
 
 reconnectButton.addEventListener("click", async () => {
@@ -59,25 +75,32 @@ copyAllButton.addEventListener("click", async () => {
 
 transportModeInput.addEventListener("change", updateTransportFields);
 
-chrome.storage.onChanged.addListener(refresh);
-refresh();
+chrome.storage.onChanged.addListener(() => {
+  refresh({ syncConnectionInputs: !connectionDirty && !isConnectionInputFocused() });
+});
+refresh({ syncConnectionInputs: true });
 
-async function refresh() {
+async function refresh(options = {}) {
+  const syncConnectionInputs = options.syncConnectionInputs !== false;
   const response = await chrome.runtime.sendMessage({
     target: "background",
     type: "get-status"
   });
 
-  transportModeInput.value = response.transportMode || "firebase";
-  firebaseDbUrlInput.value = response.firebaseDbUrl || "";
-  firebaseRoomInput.value = response.firebaseRoom || "demo";
-  wsUrlInput.value = response.wsUrl || "";
+  if (syncConnectionInputs) {
+    transportModeInput.value = response.transportMode || "firebase";
+    firebaseDbUrlInput.value = response.firebaseDbUrl || DEFAULT_FIREBASE_DB_URL;
+    firebaseRoomInput.value = response.firebaseRoom || DEFAULT_FIREBASE_ROOM;
+    wsUrlInput.value = response.wsUrl || "";
+    connectionDirty = false;
+    updateTransportFields();
+  }
+
   statusText.textContent = response.status || "Not connected";
   lastText.textContent = response.lastText || "Nothing yet";
   lastTime.textContent = response.lastUpdatedAt || "";
   statusDot.classList.toggle("connected", isConnectedStatus(response.status));
   statusDot.classList.toggle("syncing", String(response.status || "").startsWith("Synced"));
-  updateTransportFields();
 
   renderHistory(response.history || []);
 }
@@ -93,6 +116,15 @@ function isConnectedStatus(status) {
   return value.startsWith("Connected")
     || value.startsWith("Firebase relay listening")
     || value.startsWith("Clipboard updated");
+}
+
+function isConnectionInputFocused() {
+  return [
+    transportModeInput,
+    firebaseDbUrlInput,
+    firebaseRoomInput,
+    wsUrlInput
+  ].includes(document.activeElement);
 }
 
 function renderHistory(history) {
