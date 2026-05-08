@@ -110,7 +110,7 @@ public class ClipboardSyncService extends Service {
         if (!listenerRegistered && clipboardManager != null) {
             clipboardManager.addPrimaryClipChangedListener(clipListener);
             listenerRegistered = true;
-            Toast.makeText(this, "Clipboard live sync started", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Clipboard capture started", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -251,7 +251,7 @@ public class ClipboardSyncService extends Service {
     }
 
     private String relayLabel() {
-        return TRANSPORT_WEBSOCKET.equals(transportMode) ? "WebSocket" : "Firebase";
+        return TRANSPORT_WEBSOCKET.equals(transportMode) ? "Local Network" : "Cloud Sync";
     }
 
     private void ensureWebSocketClient() {

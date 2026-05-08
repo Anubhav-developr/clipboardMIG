@@ -1,5 +1,8 @@
 package com.example.clipboardsync;
 
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
@@ -12,10 +15,13 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -49,6 +55,7 @@ public class MainActivity extends Activity {
     private EditText firebaseRoomInput;
     private LinearLayout firebaseFields;
     private LinearLayout websocketFields;
+    private View syncBeam;
     private TextView statusText;
     private TextView savedCountText;
     private TextView statusBadge;
@@ -85,12 +92,15 @@ public class MainActivity extends Activity {
         ));
 
         root.addView(createHeader(), matchWrap());
+        root.addView(createMotionPanel(), matchWrapWithTopMargin(12));
         root.addView(createStatusPanel(), matchWrapWithTopMargin(18));
         root.addView(createConnectionPanel(), matchWrapWithTopMargin(12));
         root.addView(createActionsPanel(), matchWrapWithTopMargin(12));
 
         setContentView(scrollView);
         refreshSavedCount();
+        runEntryAnimations(root);
+        startAmbientAnimations();
     }
 
     private LinearLayout createHeader() {
@@ -103,7 +113,7 @@ public class MainActivity extends Activity {
         TextView title = text("ClipboardMig", 28, COLOR_TEXT, Typeface.BOLD);
         titleBlock.addView(title, matchWrap());
 
-        TextView subtitle = text("Phone clipboard capture", 13, COLOR_MUTED, Typeface.NORMAL);
+        TextView subtitle = text("Phone to PC clipboard handoff", 13, COLOR_MUTED, Typeface.NORMAL);
         subtitle.setPadding(0, dp(2), 0, 0);
         titleBlock.addView(subtitle, matchWrap());
 
@@ -121,10 +131,45 @@ public class MainActivity extends Activity {
         return header;
     }
 
+    private LinearLayout createMotionPanel() {
+        LinearLayout panel = panel();
+        panel.addView(label("CLOUD SYNC"), matchWrap());
+
+        TextView title = text("Fast handoff, no extra steps", 18, COLOR_TEXT, Typeface.BOLD);
+        title.setPadding(0, dp(8), 0, 0);
+        panel.addView(title, matchWrap());
+
+        TextView hint = text("Keep the default cloud relay, use the same Sync Code on both devices, and start copying.", 13, COLOR_MUTED, Typeface.NORMAL);
+        hint.setPadding(0, dp(8), 0, 0);
+        panel.addView(hint, matchWrap());
+
+        FrameLayout track = new FrameLayout(this);
+        track.setPadding(0, 0, 0, 0);
+        track.setBackground(rounded(Color.rgb(231, 237, 247), 999));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(12)
+        );
+        params.topMargin = dp(14);
+
+        syncBeam = new View(this);
+        GradientDrawable beam = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[] { COLOR_BLUE, Color.rgb(245, 140, 74) }
+        );
+        beam.setCornerRadius(dp(999));
+        syncBeam.setBackground(beam);
+        FrameLayout.LayoutParams beamParams = new FrameLayout.LayoutParams(dp(84), FrameLayout.LayoutParams.MATCH_PARENT);
+        track.addView(syncBeam, beamParams);
+
+        panel.addView(track, params);
+        return panel;
+    }
+
     private LinearLayout createStatusPanel() {
         LinearLayout panel = panel();
 
-        TextView label = label("LOCAL HISTORY");
+        TextView label = label("SAVED ON PHONE");
         panel.addView(label, matchWrap());
 
         savedCountText = text("0 items saved", 24, COLOR_TEXT, Typeface.BOLD);
@@ -141,13 +186,13 @@ public class MainActivity extends Activity {
     private LinearLayout createConnectionPanel() {
         LinearLayout panel = panel();
 
-        panel.addView(label("RELAY MODE"), matchWrap());
+        panel.addView(label("SYNC MODE"), matchWrap());
 
         transportModeInput = new Spinner(this);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_spinner_item,
-                new String[] { "Firebase Cloud", "Local WebSocket" }
+                new String[] { "Cloud Sync", "Local Network" }
         );
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         transportModeInput.setAdapter(adapter);
@@ -156,7 +201,7 @@ public class MainActivity extends Activity {
         panel.addView(transportModeInput, matchWrapWithTopMargin(8));
 
         firebaseFields = verticalLayout();
-        firebaseFields.addView(label("FIREBASE DATABASE URL"), matchWrapWithTopMargin(12));
+        firebaseFields.addView(label("CLOUD RELAY URL"), matchWrapWithTopMargin(12));
 
         firebaseDbUrlInput = new EditText(this);
         firebaseDbUrlInput.setSingleLine(true);
@@ -165,7 +210,11 @@ public class MainActivity extends Activity {
         styleInput(firebaseDbUrlInput);
         firebaseFields.addView(firebaseDbUrlInput, matchWrapWithTopMargin(8));
 
-        firebaseFields.addView(label("ROOM CODE"), matchWrapWithTopMargin(12));
+        TextView relayHint = text("You usually only need to change the Sync Code below.", 12, COLOR_MUTED, Typeface.NORMAL);
+        relayHint.setPadding(0, dp(8), 0, 0);
+        firebaseFields.addView(relayHint, matchWrap());
+
+        firebaseFields.addView(label("SYNC CODE"), matchWrapWithTopMargin(12));
 
         firebaseRoomInput = new EditText(this);
         firebaseRoomInput.setSingleLine(true);
@@ -177,7 +226,7 @@ public class MainActivity extends Activity {
         panel.addView(firebaseFields, matchWrap());
 
         websocketFields = verticalLayout();
-        websocketFields.addView(label("WEBSOCKET URL"), matchWrapWithTopMargin(12));
+        websocketFields.addView(label("LOCAL SERVER URL"), matchWrapWithTopMargin(12));
 
         wsUrlInput = new EditText(this);
         wsUrlInput.setSingleLine(true);
@@ -239,7 +288,7 @@ public class MainActivity extends Activity {
 
         if (ClipboardSyncService.TRANSPORT_FIREBASE.equals(mode)) {
             if (!firebaseDbUrl.startsWith("https://")) {
-                Toast.makeText(this, "Firebase DB URL must start with https://", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Cloud Relay URL must start with https://", Toast.LENGTH_LONG).show();
                 return;
             }
         } else if (!wsUrl.startsWith("ws://") && !wsUrl.startsWith("wss://")) {
@@ -402,8 +451,50 @@ public class MainActivity extends Activity {
                 : ClipboardSyncService.TRANSPORT_FIREBASE;
     }
 
+    private void runEntryAnimations(LinearLayout root) {
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            child.setAlpha(0f);
+            child.setTranslationY(dp(18));
+            child.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(420)
+                    .setStartDelay(i * 80L)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+        }
+    }
+
+    private void startAmbientAnimations() {
+        if (syncBeam != null) {
+            syncBeam.post(() -> {
+                View parent = (View) syncBeam.getParent();
+                float start = -syncBeam.getWidth();
+                float end = Math.max(start, parent.getWidth() - syncBeam.getWidth() / 3f);
+                ObjectAnimator beamAnimator = ObjectAnimator.ofFloat(syncBeam, View.TRANSLATION_X, start, end);
+                beamAnimator.setDuration(1450);
+                beamAnimator.setRepeatCount(ValueAnimator.INFINITE);
+                beamAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+                beamAnimator.start();
+            });
+        }
+
+        if (statusBadge != null) {
+            ObjectAnimator scaleX = ObjectAnimator.ofFloat(statusBadge, View.SCALE_X, 1f, 1.05f, 1f);
+            ObjectAnimator scaleY = ObjectAnimator.ofFloat(statusBadge, View.SCALE_Y, 1f, 1.05f, 1f);
+            scaleX.setRepeatCount(ValueAnimator.INFINITE);
+            scaleY.setRepeatCount(ValueAnimator.INFINITE);
+            AnimatorSet badgeAnimator = new AnimatorSet();
+            badgeAnimator.playTogether(scaleX, scaleY);
+            badgeAnimator.setDuration(1500);
+            badgeAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+            badgeAnimator.start();
+        }
+    }
+
     private String relayLabel() {
-        return ClipboardSyncService.TRANSPORT_WEBSOCKET.equals(selectedTransportMode()) ? "WebSocket" : "Firebase";
+        return ClipboardSyncService.TRANSPORT_WEBSOCKET.equals(selectedTransportMode()) ? "Local Network" : "Cloud Sync";
     }
 
     private String trimTrailingSlash(String value) {

@@ -137,6 +137,12 @@ p {
   overflow-wrap: anywhere;
 }
 
+.helper-text {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+}
+
 #last-time {
   margin-top: 4px;
   color: #64748b;

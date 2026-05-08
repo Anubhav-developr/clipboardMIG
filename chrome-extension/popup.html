@@ -16,22 +16,23 @@
       </header>
 
       <section class="connection-panel">
-        <label for="transport-mode">Relay Mode</label>
+        <label for="transport-mode">Sync Mode</label>
         <select id="transport-mode">
-          <option value="firebase">Firebase Cloud</option>
-          <option value="websocket">Local WebSocket</option>
+          <option value="firebase">Cloud Sync</option>
+          <option value="websocket">Local Network</option>
         </select>
 
         <div id="firebase-fields">
-          <label for="firebase-db-url">Firebase Database URL</label>
+          <label for="firebase-db-url">Cloud Relay URL</label>
           <input id="firebase-db-url" type="text" spellcheck="false" placeholder="https://your-project-default-rtdb.firebaseio.com">
 
-          <label for="firebase-room">Room Code</label>
+          <label for="firebase-room">Sync Code</label>
           <input id="firebase-room" type="text" spellcheck="false" placeholder="demo">
+          <p class="helper-text">Usually you only change the Sync Code. The Cloud Relay URL can stay as it is.</p>
         </div>
 
         <div id="websocket-fields">
-          <label for="ws-url">WebSocket URL</label>
+          <label for="ws-url">Local Server URL</label>
           <input id="ws-url" type="text" spellcheck="false" placeholder="ws://192.168.1.20:8080?room=demo&token=changeme">
         </div>
 

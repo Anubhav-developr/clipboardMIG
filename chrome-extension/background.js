@@ -103,7 +103,7 @@ async function setConnectionAndReconnect(message) {
     const firebaseRoom = sanitizeRoom(message.firebaseRoom || DEFAULT_FIREBASE_ROOM);
 
     if (!firebaseDbUrl) {
-      throw new Error("Firebase Database URL required");
+      throw new Error("Cloud Relay URL required");
     }
 
     values.firebaseDbUrl = firebaseDbUrl;
@@ -147,11 +147,11 @@ async function connectFirebase(firebaseDbUrl, firebaseRoom) {
   lastFirebaseMessageId = "";
 
   if (!currentFirebaseUrl) {
-    await setStatus("Add Firebase DB URL, then Save & Connect");
+    await setStatus("Add cloud relay URL, then Save & Connect");
     return;
   }
 
-  await setStatus(`Firebase relay listening: ${currentFirebaseRoom}`);
+  await setStatus(`Cloud sync ready: ${currentFirebaseRoom}`);
   await pollFirebaseOnce();
 
   firebasePollTimer = setInterval(pollFirebaseOnce, FIREBASE_POLL_MS);
@@ -166,7 +166,7 @@ async function pollFirebaseOnce() {
     });
 
     if (!response.ok) {
-      throw new Error(`Firebase ${response.status}`);
+      throw new Error(`Cloud relay ${response.status}`);
     }
 
     const data = await response.json();
@@ -178,7 +178,7 @@ async function pollFirebaseOnce() {
     lastFirebaseMessageId = messageId;
     await handleIncomingPayload(data);
   } catch (error) {
-    await setStatus(`Firebase error: ${error.message}`);
+    await setStatus(`Cloud sync error: ${error.message}`);
   }
 }
 

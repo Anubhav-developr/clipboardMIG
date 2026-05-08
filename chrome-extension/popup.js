@@ -114,7 +114,7 @@ function updateTransportFields() {
 function isConnectedStatus(status) {
   const value = String(status || "");
   return value.startsWith("Connected")
-    || value.startsWith("Firebase relay listening")
+    || value.startsWith("Cloud sync ready")
     || value.startsWith("Clipboard updated");
 }
 
